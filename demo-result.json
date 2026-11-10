@@ -1,0 +1,306 @@
+{
+  "id": "20261110-100000-demo",
+  "app": "bad-app",
+  "title": "bad-app failed",
+  "tier": "experimental",
+  "owner": {
+    "team": "Gates fixtures",
+    "contact": "gates@example.com"
+  },
+  "purpose": "Deliberately broken SDK app used to prove that every gate fails where it should.",
+  "capabilities": [
+    "read"
+  ],
+  "passed": false,
+  "errors": 18,
+  "warnings": 10,
+  "zip": "submissions/bad-app/20261110-100000-demo.zip",
+  "submittedBy": "demo",
+  "runUrl": "https://github.com/petersm05/sdk-app-gates/actions",
+  "at": "2026-11-10T09:03:43.494Z",
+  "results": [
+    {
+      "gate": "manifest",
+      "findings": [],
+      "metrics": {
+        "tier": "experimental",
+        "capabilities": "read"
+      }
+    },
+    {
+      "gate": "types",
+      "findings": [
+        {
+          "gate": "types",
+          "level": "error",
+          "rule": "types/strict",
+          "message": "tsconfig must set \"strict\": true.",
+          "file": "tsconfig.json"
+        },
+        {
+          "gate": "types",
+          "level": "info",
+          "rule": "types/unchecked-index",
+          "message": "Consider \"noUncheckedIndexedAccess\": true; SDK results are arrays and maps.",
+          "file": "tsconfig.json"
+        },
+        {
+          "gate": "types",
+          "level": "error",
+          "rule": "types/compile",
+          "message": "Property 'env' does not exist on type 'ImportMeta'.",
+          "file": "src/main.ts",
+          "line": 7
+        },
+        {
+          "gate": "types",
+          "level": "error",
+          "rule": "types/compile",
+          "message": "Argument of type 'UUID[]' is not assignable to parameter of type 'DeleteElementsPayload'.",
+          "file": "src/main.ts",
+          "line": 27
+        }
+      ],
+      "metrics": {
+        "compileErrors": 2,
+        "typeEscapes": 3,
+        "escapeBudget": 20,
+        "assertions": 1,
+        "nonNull": 4,
+        "testFiles": 0,
+        "sourceFiles": 1
+      }
+    },
+    {
+      "gate": "sdk-usage",
+      "findings": [
+        {
+          "gate": "sdk-usage",
+          "level": "warn",
+          "rule": "sdk/unchecked-result",
+          "message": "The result of updateObjects() is dropped, so a failed write goes unnoticed. Check result.ok.",
+          "file": "src/main.ts",
+          "line": 13
+        },
+        {
+          "gate": "sdk-usage",
+          "level": "warn",
+          "rule": "sdk/event-types",
+          "message": "onObjectEvents() without explicit eventTypes receives every event on a busy tenant.",
+          "file": "src/main.ts",
+          "line": 16
+        },
+        {
+          "gate": "sdk-usage",
+          "level": "error",
+          "rule": "sdk/get-all",
+          "message": ".getAll() is deprecated and loads the whole result set into memory. Use stream() or asPages().",
+          "file": "src/main.ts",
+          "line": 26
+        },
+        {
+          "gate": "sdk-usage",
+          "level": "warn",
+          "rule": "sdk/unchecked-result",
+          "message": "The result of deleteObjects() is dropped, so a failed write goes unnoticed. Check result.ok.",
+          "file": "src/main.ts",
+          "line": 27
+        },
+        {
+          "gate": "sdk-usage",
+          "level": "warn",
+          "rule": "sdk/write-in-loop",
+          "message": "updateObject() inside a loop: one request per item. Use the batch variant (updateObjects) in chunks.",
+          "file": "src/main.ts",
+          "line": 33
+        },
+        {
+          "gate": "sdk-usage",
+          "level": "warn",
+          "rule": "sdk/unchecked-result",
+          "message": "The result of updateObject() is dropped, so a failed write goes unnoticed. Check result.ok.",
+          "file": "src/main.ts",
+          "line": 33
+        },
+        {
+          "gate": "sdk-usage",
+          "level": "warn",
+          "rule": "sdk/payload-cast",
+          "message": "The updateObject() payload is cast to never/any, so the compiler no longer checks what gets written.",
+          "file": "src/main.ts",
+          "line": 33
+        },
+        {
+          "gate": "sdk-usage",
+          "level": "error",
+          "rule": "sdk/undeclared-capability",
+          "message": "updateObjects() needs \"write\", which app.json does not declare.",
+          "file": "src/main.ts",
+          "line": 13
+        },
+        {
+          "gate": "sdk-usage",
+          "level": "error",
+          "rule": "sdk/undeclared-capability",
+          "message": "deleteObjects() needs \"delete\", which app.json does not declare.",
+          "file": "src/main.ts",
+          "line": 27
+        },
+        {
+          "gate": "sdk-usage",
+          "level": "error",
+          "rule": "sdk/undeclared-capability",
+          "message": "updateObject() needs \"hide\", which app.json does not declare.",
+          "file": "src/main.ts",
+          "line": 33
+        }
+      ],
+      "metrics": {
+        "sdkCallSites": 16,
+        "reads": 13,
+        "writes": 1,
+        "hides": 1,
+        "deletes": 1,
+        "metamodel": 0
+      }
+    },
+    {
+      "gate": "structure",
+      "findings": [
+        {
+          "gate": "structure",
+          "level": "info",
+          "rule": "structure/agents-md",
+          "message": "No AGENTS.md. Add one: what the app does, how it uses the SDK, which files write, and how to run it against a sandbox."
+        },
+        {
+          "gate": "structure",
+          "level": "info",
+          "rule": "structure/data-access-undeclared",
+          "message": "SDK writes happen in src/main.ts. List them under source.dataAccess in app.json so writes elsewhere fail the build."
+        }
+      ],
+      "metrics": {
+        "longestFile": "src/main.ts (44)",
+        "testedFiles": 0,
+        "writeFiles": 1,
+        "layers": 0
+      }
+    },
+    {
+      "gate": "hygiene",
+      "findings": [
+        {
+          "gate": "hygiene",
+          "level": "error",
+          "rule": "secrets/pattern",
+          "message": "Looks like a hard-coded secret. Move it to an environment variable and rotate it.",
+          "file": "src/main.ts",
+          "line": 4
+        },
+        {
+          "gate": "hygiene",
+          "level": "error",
+          "rule": "deps/no-lockfile",
+          "message": "No lockfile, so builds are not reproducible. Commit package-lock.json."
+        },
+        {
+          "gate": "hygiene",
+          "level": "warn",
+          "rule": "deps/no-typecheck-script",
+          "message": "No \"typecheck\" script and the build does not run tsc, so type errors can ship."
+        },
+        {
+          "gate": "hygiene",
+          "level": "warn",
+          "rule": "hosts/undeclared",
+          "message": "Calls or links to telemetry.example-analytics.io, which app.json's externalHosts does not list.",
+          "file": "src/main.ts"
+        }
+      ],
+      "metrics": {
+        "filesScanned": 6,
+        "sdkVersion": "8.2.2"
+      }
+    },
+    {
+      "gate": "explore",
+      "findings": [
+        {
+          "gate": "explore",
+          "level": "error",
+          "rule": "runtime/unprompted-write",
+          "message": "kg(BDCore).updateObjects (write, 5 item(s)) ran on load or from a live event, without anyone clicking. Writes must come from a user action."
+        },
+        {
+          "gate": "explore",
+          "level": "error",
+          "rule": "runtime/undeclared-capability",
+          "message": "kg(BDCore).updateObjects needs \"write\" at runtime, which app.json does not declare."
+        },
+        {
+          "gate": "explore",
+          "level": "error",
+          "rule": "runtime/undeclared-capability",
+          "message": "kg(BDCore).updateObject needs \"hide\" at runtime, which app.json does not declare."
+        },
+        {
+          "gate": "explore",
+          "level": "error",
+          "rule": "runtime/undeclared-capability",
+          "message": "kg(BDCore).deleteObjects needs \"delete\" at runtime, which app.json does not declare."
+        },
+        {
+          "gate": "explore",
+          "level": "error",
+          "rule": "runtime/call-too-big",
+          "message": "kg(BDCore).deleteObjects carried 150 items in one call (limit 25). Send it in chunks."
+        },
+        {
+          "gate": "explore",
+          "level": "error",
+          "rule": "runtime/unconfirmed-bulk",
+          "message": "Clicking \"Archive old goals\" changed 150 items via kg(BDCore).updateObject with no confirmation (threshold 0)."
+        },
+        {
+          "gate": "explore",
+          "level": "error",
+          "rule": "runtime/action-too-big",
+          "message": "Clicking \"Archive old goals\" changed 150 items (limit 25 per action)."
+        },
+        {
+          "gate": "explore",
+          "level": "error",
+          "rule": "runtime/unconfirmed-delete",
+          "message": "Clicking \"Delete all goals\" called kg(BDCore).deleteObjects (150 item(s)) with no confirmation step. Deletes always need one."
+        },
+        {
+          "gate": "explore",
+          "level": "error",
+          "rule": "runtime/action-too-big",
+          "message": "Clicking \"Delete all goals\" changed 150 items (limit 25 per action)."
+        },
+        {
+          "gate": "explore",
+          "level": "warn",
+          "rule": "runtime/undeclared-host",
+          "message": "The app requested telemetry.example-analytics.io (1x), which app.json's externalHosts does not list."
+        },
+        {
+          "gate": "explore",
+          "level": "warn",
+          "rule": "runtime/uncaught",
+          "message": "Uncaught error (1x): Failed to fetch"
+        }
+      ],
+      "metrics": {
+        "clicks": 3,
+        "sdkCalls": 165,
+        "writeCalls": 153,
+        "itemsWritten": 310,
+        "confirmations": 0,
+        "actionsWithWrites": 2
+      }
+    }
+  ]
+}
