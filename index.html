@@ -7,6 +7,7 @@
 <meta name="gates-repo" content="petersm05/sdk-app-gates" />
 <title>SDK app gates</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="gitignore.js"></script>
 <style>
   :root {
     --bg: #f7f6f3; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6a66; --line: #e4e2dc;
@@ -127,7 +128,7 @@
         <button class="ghost" id="pick-folder">Choose folder</button>
         <button class="ghost" id="pick-zip">Choose .zip</button>
       </div>
-      <p class="small">node_modules, dist, .git and .env files are left out.</p>
+      <p class="small">Only what git would commit is uploaded: .gitignore is followed, and node_modules, dist, .git and .env files are always left out.</p>
       <input type="file" id="folder-input" webkitdirectory hidden />
       <input type="file" id="zip-input" accept=".zip,application/zip" hidden />
     </div>
@@ -242,31 +243,53 @@
   // ── picking an app ────────────────────────────────────────────────
   let upload = null; // { name, base64, bytes, files, manifest, pkg }
 
+  // Upload only what git would commit: the app's own .gitignore files decide, and the
+  // always-skipped list (node_modules, dist, .git, .env…) applies on top.
+  async function gitignored(paths, readText) {
+    const ignores = [];
+    for (const p of paths.filter((x) => /(^|\/)\.gitignore$/.test(x))) {
+      ignores.push({ dir: p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '', text: await readText(p) });
+    }
+    return GatesIgnore.compile(ignores);
+  }
+  const notable = (paths) => {
+    // Name the left-out files people may not expect, not the bulk of build output.
+    const names = paths.filter((p) => !/(^|\/)(node_modules|dist|build|coverage|\.git|cdk\.out)\//.test(p)).map((p) => p.split('/').slice(1).join('/') || p);
+    return names.slice(0, 6);
+  };
+
   async function fromFiles(fileList) {
-    const files = [...fileList].filter((f) => !SKIP.test(f.webkitRelativePath || f.name));
-    if (!files.length) throw new Error('Nothing left after skipping node_modules, dist, .git and .env files.');
+    const all = [...fileList].filter((f) => !SKIP.test(f.webkitRelativePath || f.name));
+    const byPath = new Map(all.map((f) => [f.webkitRelativePath || f.name, f]));
+    const ignored = await gitignored([...byPath.keys()], (p) => byPath.get(p).text());
+    const left = [...byPath.keys()].filter((p) => ignored(p));
+    const files = [...byPath].filter(([p]) => !ignored(p));
+    if (!files.length) throw new Error('Nothing left after skipping node_modules, dist, .git, .env and .gitignore\'d files.');
     const zip = new JSZip();
     let manifest = null, pkg = null;
-    for (const f of files) {
-      const path = f.webkitRelativePath || f.name;
+    for (const [path, f] of files) {
       zip.file(path, f);
       const depth = path.split('/').length;
       if (/(^|\/)app\.json$/.test(path) && depth <= 2) manifest = await f.text();
       if (/(^|\/)package\.json$/.test(path) && depth <= 2) pkg = await f.text();
     }
     const base64 = await zip.generateAsync({ type: 'base64', compression: 'DEFLATE', compressionOptions: { level: 6 } });
-    return { base64, bytes: Math.round((base64.length * 3) / 4), files: files.length, manifest, pkg, skipped: fileList.length - files.length };
+    return { base64, bytes: Math.round((base64.length * 3) / 4), files: files.length, manifest, pkg, skipped: fileList.length - files.length, ignored: left.length, notable: notable(left) };
   }
 
   async function fromZip(file) {
     const zip = await JSZip.loadAsync(file);
     // Repack without what the folder picker would have left out, so a .env never reaches the repo.
+    const entries = Object.values(zip.files).filter((e) => !e.dir && !e.name.startsWith('__MACOSX/'));
+    const kept = entries.filter((e) => !SKIP.test(e.name));
+    const byPath = new Map(kept.map((e) => [e.name, e]));
+    const ignored = await gitignored([...byPath.keys()], (p) => byPath.get(p).async('string'));
+    const left = [...byPath.keys()].filter((p) => ignored(p));
     const clean = new JSZip();
-    let manifest = null, pkg = null, files = 0, skipped = 0;
-    const entries = Object.values(zip.files).filter((e) => !e.dir);
-    const minDepth = Math.min(...entries.filter((e) => /(^|\/)package\.json$/.test(e.name)).map((e) => e.name.split('/').length), 99);
-    for (const e of entries) {
-      if (SKIP.test(e.name) || e.name.startsWith('__MACOSX/')) { skipped++; continue; }
+    let manifest = null, pkg = null, files = 0;
+    const minDepth = Math.min(...kept.filter((e) => /(^|\/)package\.json$/.test(e.name)).map((e) => e.name.split('/').length), 99);
+    for (const e of kept) {
+      if (ignored(e.name)) continue;
       clean.file(e.name, await e.async('uint8array'));
       files++;
       const depth = e.name.split('/').length;
@@ -274,7 +297,7 @@
       if (/(^|\/)package\.json$/.test(e.name) && depth === minDepth) pkg = await e.async('string');
     }
     const base64 = await clean.generateAsync({ type: 'base64', compression: 'DEFLATE', compressionOptions: { level: 6 } });
-    return { base64, bytes: Math.round((base64.length * 3) / 4), files, manifest, pkg, skipped };
+    return { base64, bytes: Math.round((base64.length * 3) / 4), files, manifest, pkg, skipped: entries.length - files, ignored: left.length, notable: notable(left) };
   }
 
   async function picked(promise) {
@@ -297,7 +320,8 @@
     $('#app-name').value = name;
     const mb = (upload.bytes / 1024 / 1024).toFixed(1);
     $('#picked-facts').innerHTML = `
-      <dt>Files</dt><dd>${upload.files.toLocaleString()} (${mb} MB zipped${upload.skipped ? `, ${upload.skipped.toLocaleString()} skipped` : ''})</dd>
+      <dt>Files</dt><dd>${upload.files.toLocaleString()} (${mb} MB zipped)</dd>
+      <dt>Left out</dt><dd>${upload.skipped.toLocaleString()}: node_modules, dist, .git, .env${upload.ignored ? ` and ${upload.ignored.toLocaleString()} per .gitignore` : ''}${upload.notable && upload.notable.length ? `<div class="small muted">incl. ${upload.notable.map((n) => `<code>${esc(n)}</code>`).join(' ')}</div>` : ''}</dd>
       ${m ? `<dt>Tier</dt><dd><span class="pill tier">${esc(m.tier)}</span></dd>
       <dt>Capabilities</dt><dd>${esc((m.capabilities || []).join(', '))}</dd>
       <dt>Owner</dt><dd>${esc(m.owner && m.owner.team)} · ${esc(m.owner && m.owner.contact)}</dd>` : ''}`;
