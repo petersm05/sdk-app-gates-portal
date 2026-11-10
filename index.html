@@ -6,7 +6,7 @@
 <!-- The private repository holding the kit, submissions and results. Overridden by ?repo=owner/name. -->
 <meta name="gates-repo" content="petersm05/sdk-app-gates" />
 <title>SDK app gates</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="gitignore.js"></script>
 <style>
   :root {
@@ -68,6 +68,7 @@
   .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
   .pill.pass { background: var(--ok-bg); color: var(--ok); }
   .pill.fail { background: var(--bad-bg); color: var(--bad); }
+  .pill.incomplete { background: var(--warn-bg); color: var(--warn); }
   .pill.tier { background: var(--code); color: var(--ink); font-weight: 500; }
   .gate { border-top: 1px solid var(--line); padding: 12px 0; }
   .gate:first-of-type { border-top: 0; }
@@ -256,12 +257,15 @@
     for (const p of paths.filter((x) => /(^|\/)\.gitignore$/.test(x))) {
       ignores.push({ dir: p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '', text: await readText(p) });
     }
-    return GatesIgnore.compile(ignores);
+    const git = GatesIgnore.compile(ignores);
+    // Deployment state names accounts, networks and endpoints; it has no place in an app review.
+    return (p) => INFRA.test(p) || git(p);
   }
+  const INFRA = /(^|\/)(cdk\.context\.json|cdk-outputs[^/]*\.json|[^/]*\.tfstate(\.backup)?|terraform\.tfvars)$|(^|\/)(cdk\.out|\.terraform|\.aws)\//;
   const notable = (paths) => {
     // Name the left-out files people may not expect, not the bulk of build output.
     const names = paths.filter((p) => !/(^|\/)(node_modules|dist|build|coverage|\.git|cdk\.out)\//.test(p)).map((p) => p.split('/').slice(1).join('/') || p);
-    return names.slice(0, 6);
+    return names.slice(0, 8);
   };
 
   async function fromFiles(fileList) {
@@ -327,7 +331,7 @@
     const mb = (upload.bytes / 1024 / 1024).toFixed(1);
     $('#picked-facts').innerHTML = `
       <dt>Files</dt><dd>${upload.files.toLocaleString()} (${mb} MB zipped)</dd>
-      <dt>Left out</dt><dd>${upload.skipped.toLocaleString()}: node_modules, dist, .git, .env${upload.ignored ? ` and ${upload.ignored.toLocaleString()} per .gitignore` : ''}${upload.notable && upload.notable.length ? `<div class="small muted">incl. ${upload.notable.map((n) => `<code>${esc(n)}</code>`).join(' ')}</div>` : ''}</dd>
+      <dt>Left out</dt><dd>${upload.skipped.toLocaleString()}: node_modules, dist, .git, .env, deployment state${upload.ignored ? `, and ${upload.ignored.toLocaleString()} per .gitignore or as deployment state` : ''}${upload.notable && upload.notable.length ? `<div class="small muted">incl. ${upload.notable.map((n) => `<code>${esc(n)}</code>`).join(' ')}</div>` : ''}</dd>
       ${m ? `<dt>Tier</dt><dd><span class="pill tier">${esc(m.tier)}</span></dd>
       <dt>Capabilities</dt><dd>${esc((m.capabilities || []).join(', '))}</dd>
       <dt>Limits</dt><dd>${esc(limitsText(m.limits))}</dd>
@@ -338,7 +342,7 @@
     if (m && m.limits && ['maxItemsPerCall', 'maxItemsPerAction', 'confirmAbove'].some((k) => k in m.limits)) {
       notes.push(['warn', 'app.json uses the old limits format. Limits now go per operation, e.g. "limits": { "write": { "perCall": 100 }, "delete": { "perAction": 1 } }. The manifest gate will fail until it is updated.']);
     }
-    if (!upload.manifest) notes.push(['warn', 'No app.json. The gates will fail on it, but you still get every other result. Copy the template from the kit\'s examples/app.json.']);
+    if (!upload.manifest) notes.push(['bad', 'No app.json, so the gates stop at the manifest and run nothing else. Copy the template from the kit\'s examples/app.json first.']);
     if (upload.bytes > MAX_BYTES) notes.push(['bad', `Too big (${mb} MB, limit ${MAX_BYTES / 1024 / 1024} MB). Leave out generated files.`]);
     $('#picked-banner').innerHTML = notes.map(([k, t]) => `<p class="banner ${k}">${esc(t)}</p>`).join('');
     $('#submit').disabled = !p || upload.bytes > MAX_BYTES;
@@ -405,10 +409,19 @@
     note.textContent = `Uploading ${(upload.bytes / 1024 / 1024).toFixed(1)} MB…`;
     let sha;
     try {
+      // Each upload goes on its own branch off main; the workflow deletes it after publishing,
+      // so uploaded source never lands in main's history.
+      const branch = `submit/${name}/${id}`;
+      const main = await gh(`/repos/${REPO}/git/ref/heads/main`);
+      await gh(`/repos/${REPO}/git/refs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: main.object.sha }),
+      });
       const put = await gh(`/repos/${REPO}/contents/${path}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: `Submit ${name}`, content: upload.base64 }),
+        body: JSON.stringify({ message: `Submit ${name}`, content: upload.base64, branch }),
       });
       sha = put.commit.sha;
     } catch (e) {
@@ -444,15 +457,15 @@
           if (result) {
             steps(4);
             store.set('gates-pending', null);
-            note.innerHTML = `${result.passed ? 'Passed.' : 'Failed; the report says why.'} ${link}`;
+            const v = verdictOf(result);
+            note.innerHTML = `${v === 'passed' ? 'Passed.' : v === 'incomplete' ? 'Incomplete: nothing failed, but not every gate ran, so this is not a pass.' : 'Failed; the report says why.'} ${link}`;
             renderReport(result);
             return;
           }
-          if (run.conclusion && run.conclusion !== 'success' && run.conclusion !== 'failure') {
-            steps(3, true);
-            note.innerHTML = `The run ended as ${esc(run.conclusion)} without publishing a result. ${link}`;
-            return;
-          }
+          steps(3, true);
+          store.set('gates-pending', null);
+          note.innerHTML = `The run ended (${esc(run.conclusion || 'unknown')}) but no result appeared at <code>results/${esc(name)}/${esc(id)}.json</code>. The run log says what happened. ${link}`;
+          return;
         }
       }
       await wait(5000);
@@ -500,9 +513,14 @@
       }),
     );
   }
-  const pill = (r) =>
-    r.passed ? `<span class="pill pass">Passed</span> <span class="small muted">${r.warnings ?? 0} warnings</span>`
-      : `<span class="pill fail">Failed</span> <span class="small muted">${r.errors ?? '?'} errors, ${r.warnings ?? 0} warnings</span>`;
+  // Older results have no verdict: no errors but not passed means something didn't run.
+  const verdictOf = (r) => r.verdict || (r.passed ? 'passed' : r.errors ? 'failed' : 'incomplete');
+  const pill = (r) => {
+    const v = verdictOf(r);
+    if (v === 'passed') return `<span class="pill pass">Passed</span> <span class="small muted">${r.warnings ?? 0} warnings</span>`;
+    if (v === 'incomplete') return `<span class="pill incomplete">Incomplete</span> <span class="small muted">not everything ran · ${r.warnings ?? 0} warnings</span>`;
+    return `<span class="pill fail">Failed</span> <span class="small muted">${r.errors ?? '?'} errors, ${r.warnings ?? 0} warnings</span>`;
+  };
   $('#refresh').addEventListener('click', loadResults);
 
   function renderReport(r) {
@@ -522,6 +540,7 @@
         <dt>Submitted</dt><dd>${esc(r.submittedBy || 'unknown')} · ${esc(new Date(r.at).toLocaleString())}</dd>
       </dl>
       ${r.problem ? `<p class="banner warn">${esc(r.problem)}</p>` : ''}
+      ${verdictOf(r) === 'incomplete' && (r.incomplete || []).filter((x) => x !== r.problem).length ? `<p class="banner warn">Not a pass: ${esc(r.incomplete.filter((x) => x !== r.problem).join('; '))}.</p>` : ''}
       <div style="margin-top:12px">
         ${(r.results || []).map((g) => {
           const errors = g.findings.filter((f) => f.level === 'error').length;
