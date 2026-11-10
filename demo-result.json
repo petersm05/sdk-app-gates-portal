@@ -12,7 +12,7 @@
     "read"
   ],
   "passed": false,
-  "errors": 18,
+  "errors": 15,
   "warnings": 10,
   "zip": "submissions/bad-app/20261110-100000-demo.zip",
   "submittedBy": "demo",
@@ -24,7 +24,8 @@
       "findings": [],
       "metrics": {
         "tier": "experimental",
-        "capabilities": "read"
+        "capabilities": "read",
+        "limits": "read 100/call"
       }
     },
     {
@@ -253,32 +254,14 @@
         {
           "gate": "explore",
           "level": "error",
-          "rule": "runtime/call-too-big",
-          "message": "kg(BDCore).deleteObjects carried 150 items in one call (limit 25). Send it in chunks."
-        },
-        {
-          "gate": "explore",
-          "level": "error",
           "rule": "runtime/unconfirmed-bulk",
-          "message": "Clicking \"Archive old goals\" changed 150 items via kg(BDCore).updateObject with no confirmation (threshold 0)."
-        },
-        {
-          "gate": "explore",
-          "level": "error",
-          "rule": "runtime/action-too-big",
-          "message": "Clicking \"Archive old goals\" changed 150 items (limit 25 per action)."
+          "message": "Clicking \"Archive old goals\" hid 150 items via kg(BDCore).updateObject with no confirmation (hide needs one above 0)."
         },
         {
           "gate": "explore",
           "level": "error",
           "rule": "runtime/unconfirmed-delete",
-          "message": "Clicking \"Delete all goals\" called kg(BDCore).deleteObjects (150 item(s)) with no confirmation step. Deletes always need one."
-        },
-        {
-          "gate": "explore",
-          "level": "error",
-          "rule": "runtime/action-too-big",
-          "message": "Clicking \"Delete all goals\" changed 150 items (limit 25 per action)."
+          "message": "Clicking \"Delete all goals\" deleted 150 item(s) via kg(BDCore).deleteObjects with no confirmation step. Deletes always need one."
         },
         {
           "gate": "explore",
@@ -298,6 +281,7 @@
         "sdkCalls": 165,
         "writeCalls": 153,
         "itemsWritten": 310,
+        "itemsDeleted": 150,
         "confirmations": 0,
         "actionsWithWrites": 2
       }

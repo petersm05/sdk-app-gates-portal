@@ -170,6 +170,12 @@
   const SKIP = /(^|\/)(node_modules|dist|build|coverage|\.git|\.vite|\.next|\.angular|\.cache)(\/|$)|(^|\/)\.env(\..*)?$|(^|\/)\.DS_Store$|\.log$|(^|\/)gates-report\.json$/;
 
   const $ = (s) => document.querySelector(s);
+  // "write 100/call, 100/click · delete 1/click"; anything unset falls back to the tier's limits.
+  const limitsText = (limits) => {
+    const parts = Object.entries(limits || {}).filter(([, l]) => l && typeof l === 'object').map(([op, l]) =>
+      `${op} ${[l.perCall != null && `${l.perCall}/call`, l.perAction != null && `${l.perAction}/click`, l.confirmAbove != null && `confirm above ${l.confirmAbove}`].filter(Boolean).join(', ')}`);
+    return parts.length ? `${parts.join(' · ')} (the rest: tier defaults)` : 'tier defaults';
+  };
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const store = {
     get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
@@ -324,10 +330,14 @@
       <dt>Left out</dt><dd>${upload.skipped.toLocaleString()}: node_modules, dist, .git, .env${upload.ignored ? ` and ${upload.ignored.toLocaleString()} per .gitignore` : ''}${upload.notable && upload.notable.length ? `<div class="small muted">incl. ${upload.notable.map((n) => `<code>${esc(n)}</code>`).join(' ')}</div>` : ''}</dd>
       ${m ? `<dt>Tier</dt><dd><span class="pill tier">${esc(m.tier)}</span></dd>
       <dt>Capabilities</dt><dd>${esc((m.capabilities || []).join(', '))}</dd>
+      <dt>Limits</dt><dd>${esc(limitsText(m.limits))}</dd>
       <dt>Owner</dt><dd>${esc(m.owner && m.owner.team)} · ${esc(m.owner && m.owner.contact)}</dd>` : ''}`;
     const notes = [];
     if (!p) notes.push(['bad', 'No package.json at the top of the upload. Pick the app folder itself.']);
     if (upload.manifest && !m) notes.push(['bad', 'app.json is not valid JSON.']);
+    if (m && m.limits && ['maxItemsPerCall', 'maxItemsPerAction', 'confirmAbove'].some((k) => k in m.limits)) {
+      notes.push(['warn', 'app.json uses the old limits format. Limits now go per operation, e.g. "limits": { "write": { "perCall": 100 }, "delete": { "perAction": 1 } }. The manifest gate will fail until it is updated.']);
+    }
     if (!upload.manifest) notes.push(['warn', 'No app.json. The gates will fail on it, but you still get every other result. Copy the template from the kit\'s examples/app.json.']);
     if (upload.bytes > MAX_BYTES) notes.push(['bad', `Too big (${mb} MB, limit ${MAX_BYTES / 1024 / 1024} MB). Leave out generated files.`]);
     $('#picked-banner').innerHTML = notes.map(([k, t]) => `<p class="banner ${k}">${esc(t)}</p>`).join('');
