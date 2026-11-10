@@ -1,7 +1,10 @@
 {
-  "id": "20261110-100000-demo",
+  "id": "20261110-114152-petersm05",
+  "key": "bad-app",
   "app": "bad-app",
   "title": "bad-app failed",
+  "verdict": "failed",
+  "incomplete": [],
   "tier": "experimental",
   "owner": {
     "team": "Gates fixtures",
@@ -12,18 +15,19 @@
     "read"
   ],
   "passed": false,
-  "errors": 15,
+  "errors": 16,
   "warnings": 10,
-  "zip": "submissions/bad-app/20261110-100000-demo.zip",
+  "zip": "submissions/bad-app/20261110-114152-petersm05.zip",
   "submittedBy": "demo",
-  "runUrl": "https://github.com/petersm05/sdk-app-gates/actions",
-  "at": "2026-11-10T09:03:43.494Z",
+  "runUrl": null,
+  "at": "2026-11-10T11:45:38.293Z",
   "results": [
     {
       "gate": "manifest",
       "findings": [],
       "metrics": {
         "tier": "experimental",
+        "granted": "experimental",
         "capabilities": "read",
         "limits": "read 100/call"
       }
@@ -35,7 +39,7 @@
           "gate": "types",
           "level": "error",
           "rule": "types/strict",
-          "message": "tsconfig must set \"strict\": true.",
+          "message": "tsconfig.json must set \"strict\": true.",
           "file": "tsconfig.json"
         },
         {
@@ -221,7 +225,7 @@
       ],
       "metrics": {
         "filesScanned": 6,
-        "sdkVersion": "8.2.2"
+        "sdkVersion": "8.2.12"
       }
     },
     {
@@ -254,14 +258,20 @@
         {
           "gate": "explore",
           "level": "error",
+          "rule": "runtime/read-too-big",
+          "message": "kg(BDCore).getObjects.getAll handed the app 150 items at once (read limit 100). Use stream(), or asPages() with a smaller pageSize."
+        },
+        {
+          "gate": "explore",
+          "level": "error",
           "rule": "runtime/unconfirmed-bulk",
-          "message": "Clicking \"Archive old goals\" hid 150 items via kg(BDCore).updateObject with no confirmation (hide needs one above 0)."
+          "message": "Clicking \"Archive old goals\" hid 150 items via kg(BDCore).updateObject with no confirmation first (hide needs one above 0)."
         },
         {
           "gate": "explore",
           "level": "error",
           "rule": "runtime/unconfirmed-delete",
-          "message": "Clicking \"Delete all goals\" deleted 150 item(s) via kg(BDCore).deleteObjects with no confirmation step. Deletes always need one."
+          "message": "Clicking \"Delete all goals\" deleted 150 item(s) via kg(BDCore).deleteObjects with no confirmation step first. Deletes always need one."
         },
         {
           "gate": "explore",
@@ -283,6 +293,7 @@
         "itemsWritten": 310,
         "itemsDeleted": 150,
         "confirmations": 0,
+        "largestRead": 150,
         "actionsWithWrites": 2
       }
     }
